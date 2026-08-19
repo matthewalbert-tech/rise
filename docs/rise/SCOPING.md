@@ -281,12 +281,15 @@ the factory's stage 3↔4 boundary policy.
 
 ## Sign-off
 
-**Not locked.** Decisions requiring your explicit call before this becomes `BUILD-SCOPE.md`:
-- C7 — build against Rise.ai V2 docs (recommended) or confirm with Rise.ai partnerships first?
-- C9 — static API key (recommended) vs. OAuth partnership, and who owns rotation/revocation?
-- C8 — ship v1 with only a per-transaction cap, or require a cumulative/velocity cap before launch?
-- C11 — accept the ledger-line loyalty treatment for v1, or hold for a loyalty-forward card design?
-- C12 — confirmed: refund moves to deferred, not in v1. (Recommend accepting this — flag if not.)
+**Locked 2026-08-19 — Matthew Albert, "proceed on your recommendations."**
 
-Reply with your calls on the above (or "proceed on your recommendations") and I'll produce the
-locked `BUILD-SCOPE.md` + refresh `factory-state.md` to advance to stage 2 (plan).
+| # | Decision | Resolution |
+|---|---|---|
+| C7 | V1 vs V2 docs | Build against Rise.ai **V2** (`dev.rise.ai`). No pre-build partnership contact required; flag if V2 endpoints prove incomplete during build. |
+| C9 | Auth model | **Static per-merchant API key** (`riseAccountId` + `apiKey` in admin form). Key rotation/revocation has **no owner yet** — carried as an explicit open residual (§7 item 9), not resolved by this sign-off; must be assigned before go-live. |
+| C8 | Cap scope | **Per-transaction cap only ships in v1.** Cumulative/daily/velocity limiting is a named residual (§7 item 10), not silently dropped — revisit if usage patterns post-launch warrant it. |
+| C11 | Loyalty display | **Ledger-line treatment accepted for v1.** Revisit card visual hierarchy for loyalty emphasis only if Tula (or a similarly loyalty-forward merchant) closes. |
+| C12 | Refund action | **Confirmed deferred**, not in v1 (see §6). Mechanism resolves via sandbox before it's scoped as its own action or folded into `issue_store_credit`. |
+
+Locked scope moves to `BUILD-SCOPE.md`. See that file for the frozen in-scope contract with
+GraphQL signatures.
