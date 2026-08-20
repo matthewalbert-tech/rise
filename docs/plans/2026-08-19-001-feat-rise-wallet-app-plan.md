@@ -154,6 +154,22 @@ here so the implementer doesn't lose them:
     trailing garbage, exponential notation, embedded currency symbols, whitespace — rather than
     permissively coerce it. A loosely-parsed comparison (e.g. `"50.00.01"` silently becoming
     `50`) would let a malformed amount slip past the cap undetected.
+  - **P0 fixed during implementation (U5 code review — two independent reviewers, correctness
+    and security, both found this):** the original regex (`^(0|[1-9][0-9]*)\.[0-9]{2}$`) had no
+    upper bound on the integer part's digit count. `int64 (replace "." "" $amount)` is Sprig's
+    `cast.ToInt64` → `strconv.ParseInt(s, 0, 64)` — base `0` means the conversion silently
+    returns `0` (swallowing the error) on `int64` overflow, and correctness review additionally
+    found it parses any string as octal when `strconv`'s base-0 rules apply. **Empirically
+    confirmed exploitable**: a 50-digit amount made the cap check silently pass and reached
+    `request_body.gtpl`'s raw (unbounded) `.inputs.amount`, completely defeating the merchant
+    cap. Fixed by bounding the integer part to 7 digits
+    (`^(0|[1-9][0-9]{0,6})\.[0-9]{2}$`, max `9,999,999.99`) — small enough that no valid amount
+    can overflow `int64`, and the existing leading-zero rejection (already required to reject
+    `"025.00"`-style malformed input) independently prevents the octal-misparse variant, since
+    every value that passes the regex either is exactly `"0.00"` (handled by a separate check
+    before the cap comparison) or starts with a nonzero digit. Verified live via
+    `appcfg test` with a 50-digit amount (correctly rejected post-fix) and a boundary case
+    (`1,000,000.00` vs. a `50.00` cap, correctly rejected for exceeding the cap, not misparsed).
   - **Guard-stop is a terminal state (addendum, architecture review):** a `stop` in
     `request_url.gtpl` aborts before any HTTP request is built or sent. It never reaches
     `response_transformation.gtpl` — KTD6's status-branching and KTD7's audit echo do not run
@@ -327,7 +343,8 @@ flowchart TB
   - `apps/rise/app/data/pull/wallet_transactions/external_id.gtpl`
   - `apps/rise/app/data/pull/wallet_transactions/external_parent_id.gtpl`
   - `apps/rise/app/data/pull/wallet_transactions/response_transformation.gtpl`
-  - `apps/rise/app/data/pull/wallet_transactions/_test_/data/{multiple_entries,reward_entry,empty_ledger,no_gift_card_linked,null_note_field}/`
+  - `apps/rise/app/data/pull/wallet_transactions/_test_/{multiple_entries,reward_entry,empty_ledger,no_gift_card_linked,null_note_field,malformed_row,no_parent_wallet}/`
+    (flat under `_test_/`, not `_test_/data/` — the scaffold's real convention)
 - **Approach:**
   1. `external_parent_id.gtpl` links each transaction row to the parent wallet id (KTD1).
   2. `request_url.gtpl`/body filters the query endpoint by the parent wallet id — the chaining
@@ -338,6 +355,14 @@ flowchart TB
   3. `response_transformation.gtpl` follows KTD8's shared convention and labels `REWARD`-type
      entries distinctly from `ISSUE`/`REDEEM` so the card can render them differently (supports
      KTD1's ledger-line loyalty treatment).
+  4. **P1/P2 fixed during implementation (code review):** `request_body.gtpl` and
+     `response_transformation.gtpl` both index `.externalData.rise_wallet` at position 0 without
+     checking it's non-empty first — `index` on an empty slice is an unguarded template
+     execution error (correctness + reliability review, independently). Both now `stop` with a
+     clear message if the parent wallet is missing, converting a hard crash into a clean,
+     testable failure. Also added a `kindIs "map" .` guard per transaction row before dotted
+     field access, so one malformed/non-object row (reliability review) fails just that row
+     instead of blanking the whole ledger.
 - **Patterns to follow:** Stay's list→detail chaining in `references/concepts.md`; KTD8's shared
   convention.
 - **Test scenarios:**
@@ -347,6 +372,10 @@ flowchart TB
     transactions, independent of gift-card presence (integration scenario; pattern review).
   - Empty ledger (new wallet, no activity) renders an empty list, not an error.
   - A transaction with a null/missing `note` field doesn't blank the row.
+  - A malformed row (`null`, a bare string) in the vendor's array is skipped, not fatal to the
+    rest of the ledger (code review).
+  - An empty parent wallet (`rise_wallet: []`) fails closed with a clear `stop` message instead
+    of an unguarded index-out-of-range error (code review).
 - **Verification:** `appcfg validate` and `appcfg test` green; confirm the parent-id link matches
   between this pull's fixtures and U2's wallet id (chaining gotcha from `concepts.md`).
 
@@ -564,8 +593,9 @@ scheme, `DECIMAL_VALUE` precision, the double-count check, parent-id filtering).
   malformed-amount tests to exist before the guard logic is considered done (KTD3).
 - **Attribution risk:** the vendor's shared merchant-level API key means `transactionId` alone
   doesn't identify which Gladly agent triggered an issuance — it proves an issuance happened,
-  not who caused it. Mitigation: built into this plan, not deferred — U5/U7 echo the acting
-  agent's identity into the result state alongside `transactionId` (KTD7).
+  not who caused it. Mitigation (revised, KTD7 — see Planning Contract): Gladly's own
+  conversation timeline already attributes every action event to the triggering agent as a
+  platform feature; `transactionId` is the cross-reference key, not a field this action fabricates.
 - **Credential blast-radius risk (accepted):** the static per-merchant API key (KTD2) grants
   full read+write across the merchant's entire Rise.ai wallet system, not scoped to
   `issueStoreCredit` alone. This app's cap guard only governs requests this app builds — it
@@ -576,5 +606,22 @@ scheme, `DECIMAL_VALUE` precision, the double-count check, parent-id filtering).
   whether the customer genuinely has no Rise.ai wallet or the merchant's API key is broken (see
   KTD6's addendum) — the agent has no way to tell the two apart from the missing card alone.
   Distinguishing them needs `rawResponse: true` handling, out of scope for this plan.
+- **IDOR risk on `walletId` (accepted, platform-inherent — code review, security lens):** the
+  action guards `walletId` is non-empty (U5) but has no way to re-verify it belongs to the
+  customer whose profile is open — actions receive no customer context at all (the same
+  constraint KTD1 already works around for wallet-id threading), so this can't be closed from
+  inside the action template. A tampered or buggy client submitting a different wallet's id
+  would have credit issued into it with no server-side detection at this layer. This is a
+  platform-model limitation shared by every App Platform action with a caller-supplied id
+  (Stay's `subscriptionId` has the identical shape), not specific to this app; named explicitly
+  since the security review flagged it fresh rather than assuming it's already accepted elsewhere.
+- **Opaque 5xx UX (accepted, matches shipped platform convention):** `response_transformation.gtpl`
+  calls `fail(...)` on any non-2xx/4xx status (reliability review), which bypasses the
+  `success`/`message` contract `action_result.gtpl` renders — an agent hitting a Rise.ai 500 gets
+  whatever generic error surface the platform shows for a failed action, not a friendly "try
+  again" message, and has no way to tell "safe to retry" from "may have already gone through."
+  This matches the documented shipped idiom (`response-and-status-handling.md`: "reserve `fail`
+  for 5xx/genuinely-unexpected") rather than being a gap introduced here; noted so it isn't
+  mistaken for an oversight.
 - **Dependency:** none on other Gladly apps or shared infrastructure — this is a greenfield,
   single-vendor build with no baseline to preserve.

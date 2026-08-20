@@ -9,8 +9,8 @@
 {{- end -}}
 {{- $amount := "" -}}
 {{- if .inputs.amount -}}{{- $amount = .inputs.amount | toString | trim -}}{{- end -}}
-{{- if not (regexMatch "^(0|[1-9][0-9]*)\\.[0-9]{2}$" $amount) -}}
-  {{- stop "Enter a valid amount with exactly two decimal places, e.g. 12.50." -}}
+{{- if not (regexMatch "^(0|[1-9][0-9]{0,6})\\.[0-9]{2}$" $amount) -}}
+  {{- stop "Enter a valid amount with exactly two decimal places, e.g. 12.50 (max 9,999,999.99)." -}}
 {{- end -}}
 {{- if eq $amount "0.00" -}}
   {{- stop "Amount must be greater than zero." -}}
@@ -20,7 +20,7 @@
 {{- if eq $cap "" -}}
   {{- stop "Store credit issuance is not enabled. Configure a per-transaction cap in the app settings to allow this action." -}}
 {{- end -}}
-{{- if not (regexMatch "^(0|[1-9][0-9]*)\\.[0-9]{2}$" $cap) -}}
+{{- if not (regexMatch "^(0|[1-9][0-9]{0,6})\\.[0-9]{2}$" $cap) -}}
   {{- stop "The configured store credit cap is invalid. Contact your Gladly admin." -}}
 {{- end -}}
 {{- $amountCents := int64 (replace "." "" $amount) -}}

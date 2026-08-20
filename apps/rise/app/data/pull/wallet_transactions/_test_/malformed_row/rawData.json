@@ -1,0 +1,12 @@
+{
+  "data": [
+    {
+      "id": "txn_040",
+      "type": "ISSUE",
+      "amount": "8.00",
+      "createdAt": "2026-03-01T00:00:00Z"
+    },
+    null,
+    "unexpected-string-row"
+  ]
+}
