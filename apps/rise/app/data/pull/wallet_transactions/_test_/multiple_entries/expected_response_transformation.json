@@ -1,0 +1,18 @@
+[
+  {
+    "id": "txn_001",
+    "type": "ISSUE",
+    "amount": "40.00",
+    "createdAt": "2026-07-14T10:00:00Z",
+    "walletId": "wal_9f1c2a",
+    "note": "order #10432 return"
+  },
+  {
+    "id": "txn_002",
+    "type": "REDEEM",
+    "amount": "-32.00",
+    "createdAt": "2026-06-02T09:15:00Z",
+    "walletId": "wal_9f1c2a",
+    "note": "order #10310"
+  }
+]

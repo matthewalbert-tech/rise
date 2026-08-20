@@ -7,6 +7,15 @@ type RiseGiftCardSummary {
   status: String!
 }
 
+"""A single entry in a Rise.ai wallet's transaction ledger."""
+type RiseWalletTransaction @dataType(name: "rise_wallet_transaction", version: "1.0") {
+  id: String!
+  type: String!
+  amount: String!
+  note: String
+  createdAt: String!
+}
+
 """Rise.ai wallet -- store credit balance, linked gift card, and loyalty identifier."""
 type RiseWallet @dataType(name: "rise_wallet", version: "1.0") {
   id: String!
@@ -14,6 +23,7 @@ type RiseWallet @dataType(name: "rise_wallet", version: "1.0") {
   currency: String!
   loyaltyCardNumber: String
   giftCard: RiseGiftCardSummary
+  transactions: [RiseWalletTransaction] @parentId(template: "{{.id}}")
 }
 
 type Query {

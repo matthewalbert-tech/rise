@@ -1,0 +1,9 @@
+[
+  {
+    "id": "txn_020",
+    "type": "ISSUE",
+    "amount": "15.00",
+    "createdAt": "2026-05-01T12:00:00Z",
+    "walletId": "wal_9f1c2a"
+  }
+]

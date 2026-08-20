@@ -1,0 +1,10 @@
+[
+  {
+    "id": "txn_010",
+    "type": "REWARD",
+    "amount": "12.00",
+    "createdAt": "2026-07-28T08:00:00Z",
+    "walletId": "wal_9f1c2a",
+    "note": "loyalty accrual"
+  }
+]

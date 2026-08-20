@@ -1,0 +1,10 @@
+{
+  "dataType": {
+    "name": "rise_wallet_transaction",
+    "version": "1.0"
+  },
+  "httpMethod": "POST",
+  "contentType": "application/json",
+  "dependsOnDataTypes": ["rise_wallet"],
+  "rawResponse": false
+}

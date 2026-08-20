@@ -1,0 +1,16 @@
+{
+  "rise_wallet_transaction": [
+    {
+      "id": "txn_001",
+      "walletId": "wal_9f1c2a",
+      "type": "ISSUE",
+      "amount": "40.00",
+      "createdAt": "2026-07-14T10:00:00Z"
+    }
+  ],
+  "rise_wallet": [
+    {
+      "id": "wal_9f1c2a"
+    }
+  ]
+}
