@@ -269,6 +269,26 @@ here so the implementer doesn't lose them:
   Real gift card field names (`code`, `balance`, `initialValue`, `currency`, `expirationDate`,
   `disableDate` — no explicit `status` field) are also live-confirmed from this pass and differ
   from the original snake_case guesses (`expires_at`, `status`).
+- KTD12. **Partial reversal of KTD11, same day, new evidence (U2, U4).** The 404 that drove
+  KTD11 turned out to be a false negative from testing against a gift card issued through a
+  flow that never creates a wallet wrapper. Once a real wallet existed (created via Rise's
+  "Issue Compensation" flow), `GET /v1/rise/wallets?query.email=` returned `200` with the gift
+  card embedded: `{"wallet": {"id": ..., "giftCardId": ..., "giftCardInfo": {"code", "balance",
+  "currency", "codeSuffix"}, ...}}`. Two live facts this corrects:
+  - **The response is wrapped** (`rawData.wallet.*`), not a bare object — U2's original
+    transform read `rawData.id` directly. Real bug, now fixed.
+  - **A wallet has no distinct balance field of its own** — its "Store Credit" balance *is* the
+    linked gift card's balance (`giftCardInfo.balance`). Rise's "Wallet" is a
+    customer/compensation-tracking wrapper around one backing gift card, not a separate ledger.
+  Net design, reconciling KTD11 and this finding: **both delivery mechanisms are correct, for
+  different customer states.** `RiseWallet` gets a `giftCardCode` field (sourced from
+  `giftCardInfo.code`) restored so a wallet-having customer's card shows it automatically; the
+  defensive fallback checks for a hypothetical top-level `balance` first in case some wallet
+  shape doesn't route through a gift card. U8's `lookupGiftCard` action **stays** — it's still
+  the only path for a customer who has a bare gift card with no wallet wrapper at all (the
+  case that originally triggered KTD11, confirmed still real and distinct from this one).
+  `loyaltyCardNumber`'s source remains entirely unconfirmed — it was absent from every live
+  response seen so far.
 
 ### High-Level Technical Design
 
@@ -347,7 +367,8 @@ flowchart TB
 - **Requirements:** R1.
 - **Dependencies:** U1.
 - **Files:**
-  - `apps/rise/app/data/data_schema.graphql` (adds `RiseWallet` — no gift card field, see below)
+  - `apps/rise/app/data/data_schema.graphql` (adds `RiseWallet`, incl. `giftCardCode` — see
+    KTD12)
   - `apps/rise/app/data/pull/wallet/config.json`
   - `apps/rise/app/data/pull/wallet/request_url.gtpl`
   - `apps/rise/app/data/pull/wallet/external_id.gtpl`
@@ -360,10 +381,12 @@ flowchart TB
      `.email`), and the query parameter is dot-notation (`query.email=`), neither of which
      matched the original vendor-docs research.
   2. `response_transformation.gtpl` follows the shared convention in KTD8 for monetary fields.
-     No gift-card handling here — **removed during implementation** (see KTD11 addendum below):
-     live testing proved wallets and gift cards are independent Rise.ai objects with no
-     confirmed email-based join between them, so gift card display moved to its own
-     agent-invoked lookup action (U8) rather than staying nested on this pull.
+     **Live-confirmed 2026-08-20 (KTD12):** the response is wrapped (`rawData.wallet.*`, not a
+     bare object), and a wallet's balance/currency/code come from the embedded
+     `giftCardInfo.{balance,currency,code}` — there's no distinct wallet-level balance field.
+     Defensively checks for a top-level `balance` first before falling back to `giftCardInfo`.
+     A customer with a bare gift card and no wallet wrapper still has no email-based path here —
+     that case is served by U8's `lookupGiftCard` action instead.
   3. Default path (no `rawResponse`) per KTD6 — a non-200 fails the pull; **live-confirmed
      2026-08-20**: a nonexistent wallet is a real `404` with a `WALLET_NOT_FOUND` code, not a
      `200` with an empty body, exactly as KTD6 assumed.
@@ -427,24 +450,24 @@ flowchart TB
 
 ### U4. Wallet card
 
-- **Goal:** render the wallet balance, loyalty card number, and an expandable transaction ledger
-  as one customer-profile card.
-- **Requirements:** R1, R2. **Revised from the original design** (see origin: wallet card
-  mockup, linked in Sources) — the mockup showed gift card info nested in this same card; that
-  moved to U8's lookup action once live testing showed wallets and gift cards have no confirmed
-  email-based link (KTD11). Same data, different surface — an agent-invoked lookup instead of an
-  always-visible card section.
+- **Goal:** render the wallet balance, gift card code (when the wallet has one), loyalty card
+  number, and an expandable transaction ledger as one customer-profile card.
+- **Requirements:** R1, R2. **Revised twice during implementation** (see origin: wallet card
+  mockup, linked in Sources): KTD11 moved gift card off this card into U8's lookup action after
+  a 404 against a bare (walletless) gift card; KTD12 restored a `giftCardCode` field here, same
+  day, once a real wallet showed the gift card actually comes back embedded in the wallet
+  response when a wallet exists. Both are correct for different customer states — see KTD12.
 - **Dependencies:** U2, U3.
 - **Files:**
   - `apps/rise/app/ui/templates/wallet/config.json`
   - `apps/rise/app/ui/templates/wallet/flexible.card`
   - `apps/rise/app/ui/templates/wallet/_edit_/{default.json,no_loyalty_card.json,zero.json}`
 - **Approach:**
-  1. Store credit balance, loyalty card number (when present), and a collapsible transaction
-     panel — no gift card section (removed during implementation, KTD11).
+  1. Store credit balance, gift card code (when present, KTD12), loyalty card number (when
+     present), and a collapsible transaction panel.
   2. Guard every optional/nested field in the card the same way the response transform already
-     guards them (U2/U3) — a card should never render "Something's wrong with this card" for an
-     empty ledger.
+     guards them (U2/U3) — a card should never render "Something's wrong with this card" for a
+     merely-absent gift card code or empty ledger.
 - **Patterns to follow:** null-field card-blanking trap in
   `references/response-and-status-handling.md`.
 - **Test scenarios:** `Test expectation: none — visual card verification isn't an `appcfg test`
@@ -599,11 +622,12 @@ flowchart TB
 
 ### U8. `lookupGiftCard` action and agent form
 
-- **Goal:** let an agent look up a customer's gift card by its exact code — the mechanism gift
-  card display moved to after KTD11's architecture correction (no confirmed email-based
-  wallet↔gift-card link exists).
-- **Requirements:** R1 (gift card info, originally scoped as part of the wallet display —
-  delivered here instead; see KTD11).
+- **Goal:** let an agent look up a gift card by its exact code — the only path for a customer
+  who has a bare gift card with no wallet wrapper (confirmed to happen; the case that
+  originally drove KTD11). Complements, not replaces, U4's `giftCardCode` display for
+  wallet-linked gift cards (KTD12).
+- **Requirements:** R1 (gift card info for the walletless case; the wallet-linked case is
+  covered by U4 directly per KTD12).
 - **Dependencies:** U1.
 - **Files:**
   - `apps/rise/app/actions/actions_schema.graphql` (adds `LookupGiftCardResult`,

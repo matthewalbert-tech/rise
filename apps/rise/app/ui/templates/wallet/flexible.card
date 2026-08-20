@@ -1,6 +1,7 @@
 <?Template languageVersion="1.2" ?>
 <Card title="Rise.ai Wallet">
   <CurrencyValue dataSource="balance" label="Store Credit" />
+  <StringValue when="giftCardCode is defined" dataSource="giftCardCode" label="Gift Card Code" />
   <StringValue when="loyaltyCardNumber is defined" dataSource="loyaltyCardNumber" label="Loyalty Card No." />
 
   <Drawer when="transactions is not empty">

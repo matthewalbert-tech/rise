@@ -1,7 +1,24 @@
-{{- /* Field names (balance, loyalty_card_number) are a documented-shape assumption -- verify live at stage 4. */ -}}
-{{- if not (kindIs "map" .rawData) -}}{{- stop "Rise.ai wallet response was not in the expected shape." -}}{{- end -}}
-{{- $w := dict "id" (.rawData.id | toString) "balance" (.rawData.balance | toString) "currency" (.rawData.currency | default "USD" | toString) -}}
-{{- if .rawData.loyalty_card_number -}}
-  {{- $_ := set $w "loyaltyCardNumber" (.rawData.loyalty_card_number | toString) -}}
+{{- /* Envelope confirmed live 2026-08-20: response is {"wallet": {...}}, not a bare object.
+A wallet's balance/currency/code come from the embedded giftCardInfo, not top-level fields --
+defensively check for a top-level balance first in case a wallet with no gift card ever
+surfaces one directly, per the vendor's own schema mismatch pattern seen elsewhere. */ -}}
+{{- if not (and (kindIs "map" .rawData) (kindIs "map" .rawData.wallet)) -}}
+  {{- stop "Rise.ai wallet response was not in the expected shape." -}}
 {{- end -}}
-{{- $w | toJson -}}
+{{- $w := .rawData.wallet -}}
+{{- $out := dict "id" ($w.id | toString) -}}
+{{- if $w.balance -}}
+  {{- $_ := set $out "balance" ($w.balance | toString) -}}
+  {{- $_ := set $out "currency" ($w.currency | default "USD" | toString) -}}
+{{- else if kindIs "map" $w.giftCardInfo -}}
+  {{- $_ := set $out "balance" ($w.giftCardInfo.balance | toString) -}}
+  {{- $_ := set $out "currency" ($w.giftCardInfo.currency | default "USD" | toString) -}}
+  {{- if $w.giftCardInfo.code -}}{{- $_ := set $out "giftCardCode" ($w.giftCardInfo.code | toString) -}}{{- end -}}
+{{- else -}}
+  {{- $_ := set $out "balance" "0.00" -}}
+  {{- $_ := set $out "currency" "USD" -}}
+{{- end -}}
+{{- if $w.loyalty_card_number -}}
+  {{- $_ := set $out "loyaltyCardNumber" ($w.loyalty_card_number | toString) -}}
+{{- end -}}
+{{- $out | toJson -}}

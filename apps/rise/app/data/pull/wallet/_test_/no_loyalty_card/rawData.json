@@ -1,5 +1,17 @@
 {
-  "id": "wal_5d2f77",
-  "balance": "40.00",
-  "currency": "USD"
+  "wallet": {
+    "id": "wal_5d2f77",
+    "revision": "1",
+    "giftCardId": "gc_5d2f77",
+    "customerReferences": [],
+    "createdDate": "2026-08-20T11:48:05.887Z",
+    "updatedDate": "2026-08-20T11:48:05.911Z",
+    "giftCardInfo": {
+      "code": "AAAA1111BBBB2222",
+      "balance": "40.00",
+      "currency": "USD",
+      "codeSuffix": "2222"
+    },
+    "primaryEmail": "customer@example.com"
+  }
 }

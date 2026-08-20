@@ -15,6 +15,15 @@ reasoning, citations, decision ledger, and 3-lens review: [`SCOPING.md`](./SCOPI
 > balance, so there's no double-counting to worry about. Full detail:
 > `docs/plans/2026-08-19-001-feat-rise-wallet-app-plan.md` KTD11. The GraphQL block below is left
 > as originally locked for audit history; see the plan for the as-built shape.
+>
+> **Follow-up same day (KTD12):** the 404 above was a false negative — it was tested against a
+> gift card with no wallet wrapper. A customer *with* a real wallet (Rise's "Issue Compensation"
+> flow) returns the gift card embedded in the wallet response after all
+> (`wallet.giftCardInfo.{code,balance,currency}`) — a wallet's balance *is* its linked gift
+> card's balance, not a separate ledger. Both mechanisms are real and now implemented: U4's card
+> shows `giftCardCode` automatically for wallet-linked customers; U8's `lookupGiftCard` action
+> remains the only path for a bare gift card with no wallet. The double-count conclusion above
+> still holds (a wallet and its gift card are one balance, not two counted separately).
 
 ## In-scope (v1)
 
