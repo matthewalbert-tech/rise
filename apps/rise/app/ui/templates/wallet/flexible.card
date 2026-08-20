@@ -1,16 +1,6 @@
 <?Template languageVersion="1.2" ?>
 <Card title="Rise.ai Wallet">
-  <ColumnGroup columnSpacing="large">
-    <Column width="50%">
-      <CurrencyValue dataSource="balance" label="Store Credit" />
-    </Column>
-    <Column width="50%">
-      <CurrencyValue when="giftCard is defined" dataSource="giftCard.balance" label="Gift Card Balance" />
-    </Column>
-  </ColumnGroup>
-
-  <StringValue when="giftCard is defined" dataSource="giftCard.code" label="Gift Card Code" />
-  <DateTimeValue when="giftCard.expiresAt is defined" dataSource="giftCard.expiresAt" format="MMM D, YYYY" label="Expires" />
+  <CurrencyValue dataSource="balance" label="Store Credit" />
   <StringValue when="loyaltyCardNumber is defined" dataSource="loyaltyCardNumber" label="Loyalty Card No." />
 
   <Drawer when="transactions is not empty">

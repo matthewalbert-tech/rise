@@ -5,6 +5,17 @@
 Locked 2026-08-19 · Signed off by Matthew Albert ("proceed on your recommendations") · Full
 reasoning, citations, decision ledger, and 3-lens review: [`SCOPING.md`](./SCOPING.md).
 
+> **Addendum, 2026-08-20 (implementation-time architecture correction, mechanism only — not a
+> scope change):** live testing during the build stage found no confirmed email-based link
+> between a Rise.ai wallet and a gift card — `giftCard` cannot actually be nested on `RiseWallet`
+> as drafted below. The same data (gift card code/balance/expiration) is still delivered to the
+> agent, just via a new agent-invoked `lookupGiftCard` action (by exact code) instead of an
+> always-visible card field. This also **resolves** the wallet-vs-gift-card double-count concern
+> (pre-build gate item 4, C10) outright: they're independently addressable objects with no shared
+> balance, so there's no double-counting to worry about. Full detail:
+> `docs/plans/2026-08-19-001-feat-rise-wallet-app-plan.md` KTD11. The GraphQL block below is left
+> as originally locked for audit history; see the plan for the as-built shape.
+
 ## In-scope (v1)
 
 ### Data Types

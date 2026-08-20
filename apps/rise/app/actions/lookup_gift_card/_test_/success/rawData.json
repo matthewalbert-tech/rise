@@ -1,0 +1,13 @@
+{
+  "giftCards": [
+    {
+      "id": "gc_7f2k9qxm",
+      "code": "ZF6XDMRGKTCN2XYZ1234",
+      "initialValue": "1.00",
+      "balance": "1.00",
+      "currency": "USD",
+      "expirationDate": "2027-08-20T00:00:00Z",
+      "createdDate": "2026-08-20T10:43:06Z"
+    }
+  ]
+}

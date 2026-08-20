@@ -1,0 +1,8 @@
+{
+  "message": "Filter is invalid",
+  "details": {
+    "applicationError": {
+      "code": "UNSUPPORTED_FILTER"
+    }
+  }
+}

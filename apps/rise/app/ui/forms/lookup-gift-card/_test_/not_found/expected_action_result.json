@@ -1,0 +1,5 @@
+{
+  "errors": [
+    { "attr": "code", "detail": "No gift card found with that code." }
+  ]
+}

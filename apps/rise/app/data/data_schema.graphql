@@ -1,12 +1,3 @@
-"""Gift card linked to a Rise.ai wallet."""
-type RiseGiftCardSummary {
-  id: String!
-  code: String!
-  balance: String!
-  expiresAt: String
-  status: String!
-}
-
 """A single entry in a Rise.ai wallet's transaction ledger."""
 type RiseWalletTransaction @dataType(name: "rise_wallet_transaction", version: "1.0") {
   id: String!
@@ -16,13 +7,14 @@ type RiseWalletTransaction @dataType(name: "rise_wallet_transaction", version: "
   createdAt: String!
 }
 
-"""Rise.ai wallet -- store credit balance, linked gift card, and loyalty identifier."""
+"""Rise.ai wallet -- store credit balance and loyalty identifier. Gift cards are a
+separate Rise.ai object with no confirmed email-based lookup (see lookupGiftCard
+action) -- not nested here."""
 type RiseWallet @dataType(name: "rise_wallet", version: "1.0") {
   id: String!
   balance: String!
   currency: String!
   loyaltyCardNumber: String
-  giftCard: RiseGiftCardSummary
   transactions: [RiseWalletTransaction] @parentId(template: "{{.id}}")
 }
 

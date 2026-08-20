@@ -15,7 +15,7 @@ deepened: 2026-08-19
 ## Goal Capsule
 
 - **Objective:** build the v1 Rise.ai Gladly App Platform app to a green `make all` — a wallet
-  card and one guarded money action, per the locked scope.
+  card, one guarded money action, and a gift-card lookup action, per the locked scope.
 - **Authority hierarchy:** `docs/rise/BUILD-SCOPE.md` is the frozen contract for WHAT to build;
   this plan and its implementer own only HOW. A conflict between this plan and BUILD-SCOPE.md
   resolves in BUILD-SCOPE.md's favor — flag it, don't silently follow the plan.
@@ -35,9 +35,10 @@ deepened: 2026-08-19
 ### Summary
 
 Build a Gladly App Platform app for Rise.ai: one customer-profile card showing wallet (store
-credit) balance, linked gift card, expiration, loyalty card number, and an expandable transaction
-ledger; one guarded agent action to issue store credit. Refund-to-credit and direct gift-card
-balance adjustment are out of scope for this plan.
+credit) balance, loyalty card number, and an expandable transaction ledger; a guarded agent
+action to issue store credit; and an agent-invoked lookup action for gift card balance/expiration
+by exact code (moved off the wallet card during implementation — see KTD11). Refund-to-credit and
+direct gift-card balance adjustment are out of scope for this plan.
 
 ### Problem Frame
 
@@ -49,9 +50,11 @@ scoping ledger locked a v1 answer to it (see origin: `docs/rise/BUILD-SCOPE.md`)
 ### Requirements
 
 **Wallet visibility**
-- R1. The app pulls the customer's Rise.ai wallet — store credit balance, linked gift card
-  code/balance/expiration, loyalty card number — matched by customer email, on one
-  customer-profile card.
+- R1. The app pulls the customer's Rise.ai wallet — store credit balance and loyalty card
+  number — matched by customer email, on one customer-profile card. **Revised during
+  implementation (KTD11):** gift card code/balance/expiration is delivered via a separate
+  agent-invoked lookup action (U8), not nested on this card — live testing found no confirmed
+  email-based link between a customer's wallet and their gift card.
 - R2. The app pulls the wallet's transaction/ledger history as a chained detail data type,
   including reward-type entries labeled distinctly, rendered as an expandable panel on the same
   card (unified-card decision, see KTD4).
@@ -84,11 +87,15 @@ here so the implementer doesn't lose them:
   fixtures updated. Also discovered live and fixed: the wallet lookup's query parameter is
   dot-notation (`query.email=`), not `email=` as originally assumed — neither the vendor docs
   research nor this plan anticipated that shape.
-- `DECIMAL_VALUE` wire format on both the wallet pull (read) and the issue-credit action (write).
-  **Deferred** to stage 4 — still needs a real wallet response to inspect actual field names and
-  precision (the 2026-08-20 live probe only reached a 404 "not found" case).
-- Wallet vs. gift-card double-count — blocks trusting `issueStoreCredit`'s cap live, not blocks
-  building it. **Deferred** to stage 4.
+- `DECIMAL_VALUE` wire format and exact precision on the **wallet's** `balance` field
+  specifically. **Deferred** to stage 4 — every live wallet probe hit a 404 "not found" case, so
+  U2's response-transform assumption is still unverified (see the string-vs-number bullet below
+  for what *is* now confirmed, for gift cards).
+- ~~Wallet vs. gift-card double-count~~ **Resolved 2026-08-20, live (KTD11):** wallets and gift
+  cards are independent Rise.ai objects with no confirmed link — not "linked but tracked
+  separately," genuinely unrelated. There is no double-count risk because `issueStoreCredit`
+  and gift card balances can never touch the same money. Gift card display moved to its own
+  lookup action (U8) as a result.
 - Whether the transaction-query endpoint filters server-side by wallet id (needed for U3's
   chaining) — if it doesn't, U3 falls back to client-side scoping. **Deferred**, contingency
   noted in U3.
@@ -100,10 +107,11 @@ here so the implementer doesn't lose them:
   already shipped without role-gating — named explicitly rather than left an implicit
   assumption. **Deferred**, non-blocking.
 - Whether `DECIMAL_VALUE` is guaranteed to serialize as a JSON **string** (not a bare number)
-  for every Rise.ai monetary field this app touches, distinct from the precision question above
-  — KTD5's `String` typing decision assumes string representation; if stage 4 finds a bare
-  number instead, that's a schema-field-type correction, not a template tweak. **Deferred** to
-  stage 4 (doc-review, adversarial).
+  for every Rise.ai monetary field this app touches. **Partially resolved 2026-08-20, live:**
+  confirmed `STRING` for gift card fields (`balance`, `initialValue`) via dev.rise.ai's "Query
+  Gift Cards" response schema, validating KTD5's typing decision for that data. The wallet's
+  own `balance` field was never directly inspected (see the bullet above) — **deferred** to
+  stage 4 for that specific field.
 - Whether Rise.ai's `issue_store_credit` endpoint actually deduplicates server-side on the
   `idempotencyKey` sent (KTD9, revised — now the action's `.correlationId`), and whether
   `.correlationId` itself stays stable across a client-side resubmission after a timeout (the
@@ -235,6 +243,32 @@ here so the implementer doesn't lose them:
   (simpler than the original hidden-field design). Whether `.correlationId` stays stable across
   a client-side resubmission after a timeout (the property this mechanism needs) is unconfirmed
   — see Outstanding Questions.
+- KTD10. **Added during implementation (U2).** Auth header scheme and the wallet query
+  parameter format, both live-confirmed 2026-08-20: `authorization: Bearer YOUR_API_TOKEN`
+  (resolves the contested C4), and the query parameter is dot-notation
+  (`query.email=...`/`query.wallet_id=...`/`query.customer_reference_source=...`), not a bare
+  `email=` param as originally assumed from static vendor-docs research. Neither shape was
+  guessable without live traffic.
+- KTD11. **Architecture correction during implementation (U2, U4, U8).** The original design
+  nested gift card info inside `RiseWallet` (KTD1's mockup-driven shape). Live testing proved
+  this can't work: `GET /v1/rise/wallets?query.email=` 404s even for a customer with an active,
+  real gift card, and Rise.ai's own docs show `Wallet` and `GiftCard` as independent object
+  trees with separate CRUD endpoints — no confirmed email-based join exists between them (a
+  `Recipient` object links `email` → `giftCardId`, but has no query-by-email endpoint, only
+  get/create/delete by its own ID; a promising `POST /v1/rise/wallets/query_by_contact`
+  endpoint that returns wallets with embedded `giftCardId`/`giftCardInfo` was tried with four
+  different filter-shape guesses, all rejected as `UNSUPPORTED_FILTER` — its docs example is
+  broken/non-representative). This matches an established cross-vendor precedent already in
+  this factory's institutional learnings (ShipBob/ShipMonk, 2026-07): *when a vendor's data has
+  no customer-identity lookup, deliver it as an agent-invoked lookup action, not an
+  auto-pulling card.* Resolution: `RiseWallet` drops the `giftCard` field entirely (U2); gift
+  card display becomes `lookupGiftCard`, a new agent-invoked action (U8) that looks up by exact
+  code via the confirmed-working `POST /v1/rise/gift-cards/query` endpoint (`{"query":
+  {"filter": {"code": "..."}}}`, live-confirmed against dev.rise.ai's "About API Query
+  Language" doc). Same data ends up visible to the agent; the mechanism changed, not the scope.
+  Real gift card field names (`code`, `balance`, `initialValue`, `currency`, `expirationDate`,
+  `disableDate` — no explicit `status` field) are also live-confirmed from this pass and differ
+  from the original snake_case guesses (`expires_at`, `status`).
 
 ### High-Level Technical Design
 
@@ -243,9 +277,9 @@ guarded path before the timeline records it:
 
 ```mermaid
 flowchart TB
-  A[Agent opens customer profile] --> B["GET /v1/rise/wallets?email= (rise_wallet pull)"]
+  A[Agent opens customer profile] --> B["GET /v1/rise/wallets?query.email= (rise_wallet pull)"]
   B --> C["POST wallet_actions/query, filtered by walletId (rise_wallet_transaction pull, chained)"]
-  C --> D[Unified wallet card renders: balance, gift card, expiration, loyalty card number, transaction panel]
+  C --> D[Wallet card renders: balance, loyalty card number, transaction panel]
   D --> E[Agent opens Issue Store Credit form]
   E --> F{Cap set, amount well-formed and positive, and amount <= cap?}
   F -->|No| G[request_url.gtpl stops - fail closed]
@@ -254,6 +288,12 @@ flowchart TB
   I -->|Yes| J[Echo transactionId + newBalance to timeline]
   I -->|No, 4xx| K[Clean error envelope]
   I -->|No, other| L[fail - unexpected status]
+
+  D --> M[Agent opens Look Up Gift Card form, enters code]
+  M --> N["POST gift-cards/query, filtered by exact code"]
+  N --> O{Found?}
+  O -->|Yes| P[Show balance, initial value, expiration]
+  O -->|No| Q[No gift card found with that code]
 ```
 
 ### Assumptions
@@ -307,29 +347,32 @@ flowchart TB
 - **Requirements:** R1.
 - **Dependencies:** U1.
 - **Files:**
-  - `apps/rise/app/data/data_schema.graphql` (adds `RiseWallet`, `RiseGiftCardSummary`)
+  - `apps/rise/app/data/data_schema.graphql` (adds `RiseWallet` — no gift card field, see below)
   - `apps/rise/app/data/pull/wallet/config.json`
   - `apps/rise/app/data/pull/wallet/request_url.gtpl`
   - `apps/rise/app/data/pull/wallet/external_id.gtpl`
   - `apps/rise/app/data/pull/wallet/external_updated_at.gtpl`
   - `apps/rise/app/data/pull/wallet/response_transformation.gtpl`
-  - `apps/rise/app/data/pull/wallet/_test_/data/{happy_path,no_gift_card,no_loyalty_card,zero_balance}/`
+  - `apps/rise/app/data/pull/wallet/_test_/{happy_path,no_loyalty_card,zero_balance}/`
 - **Approach:**
-  1. `request_url.gtpl` builds `GET /v1/rise/wallets` with `email={{.customer.email}}`.
-  2. `response_transformation.gtpl` follows the shared convention in KTD8 for monetary fields
-     and null-nested guarding.
-  3. Default path (no `rawResponse`) per KTD6 — a non-200 fails the pull until stage 4 proves
-     otherwise; see KTD6's addendum on the accepted no-wallet/broken-key ambiguity this implies.
+  1. `request_url.gtpl` builds `GET /v1/rise/wallets?query.email=...` — **live-confirmed
+     2026-08-20**: the real customer-context field is `.customer.primaryEmailAddress` (not
+     `.email`), and the query parameter is dot-notation (`query.email=`), neither of which
+     matched the original vendor-docs research.
+  2. `response_transformation.gtpl` follows the shared convention in KTD8 for monetary fields.
+     No gift-card handling here — **removed during implementation** (see KTD11 addendum below):
+     live testing proved wallets and gift cards are independent Rise.ai objects with no
+     confirmed email-based join between them, so gift card display moved to its own
+     agent-invoked lookup action (U8) rather than staying nested on this pull.
+  3. Default path (no `rawResponse`) per KTD6 — a non-200 fails the pull; **live-confirmed
+     2026-08-20**: a nonexistent wallet is a real `404` with a `WALLET_NOT_FOUND` code, not a
+     `200` with an empty body, exactly as KTD6 assumed.
 - **Patterns to follow:** KTD8's shared convention; null-nested-field guard idiom in
   `references/response-and-status-handling.md`.
 - **Test scenarios:**
-  - Happy path: wallet with balance, linked gift card, expiration, loyalty card number.
-  - Wallet with no linked gift card — total absence of the nested object; card still renders,
-    gift card fields absent, not null-erroring.
-  - Gift card present but one nested field (`loyaltyCardNumber`) is null — sibling fields
-    (balance, code, expiration) still render. Distinct from the total-absence case above
-    (pattern review).
-  - Zero balance renders as `"0.00"` (or whatever stage-4 confirms), not blank.
+  - Happy path: wallet with balance, expiration, loyalty card number.
+  - Wallet with no loyalty card number — sibling fields still render.
+  - Zero balance renders as `"0.00"`, not blank.
 - **Verification:** `appcfg validate` and `appcfg test` green for this pull.
 
 ---
@@ -347,15 +390,14 @@ flowchart TB
   - `apps/rise/app/data/pull/wallet_transactions/external_id.gtpl`
   - `apps/rise/app/data/pull/wallet_transactions/external_parent_id.gtpl`
   - `apps/rise/app/data/pull/wallet_transactions/response_transformation.gtpl`
-  - `apps/rise/app/data/pull/wallet_transactions/_test_/{multiple_entries,reward_entry,empty_ledger,no_gift_card_linked,null_note_field,malformed_row,no_parent_wallet}/`
+  - `apps/rise/app/data/pull/wallet_transactions/_test_/{multiple_entries,reward_entry,empty_ledger,null_note_field,malformed_row,no_parent_wallet}/`
     (flat under `_test_/`, not `_test_/data/` — the scaffold's real convention)
 - **Approach:**
   1. `external_parent_id.gtpl` links each transaction row to the parent wallet id (KTD1).
   2. `request_url.gtpl`/body filters the query endpoint by the parent wallet id — the chaining
-     key is `RiseWallet.id` (KTD1), not a gift-card id, so this pull runs whenever the parent
-     wallet pull succeeds, regardless of whether a gift card is linked (pattern review). Per the
-     Outstanding Question, if the endpoint doesn't support a server-side filter, fall back to
-     requesting all transactions and filtering by wallet id in the response transform instead.
+     key is `RiseWallet.id` (KTD1). Per the Outstanding Question, if the endpoint doesn't
+     support a server-side filter, fall back to requesting all transactions and filtering by
+     wallet id in the response transform instead.
   3. `response_transformation.gtpl` follows KTD8's shared convention and labels `REWARD`-type
      entries distinctly from `ISSUE`/`REDEEM` so the card can render them differently (supports
      KTD1's ledger-line loyalty treatment).
@@ -372,8 +414,6 @@ flowchart TB
 - **Test scenarios:**
   - Multiple transactions of mixed types render with correct labels.
   - A `REWARD`-type entry is labeled distinctly.
-  - Wallet has no linked gift card — this pull still runs and returns the wallet's own
-    transactions, independent of gift-card presence (integration scenario; pattern review).
   - Empty ledger (new wallet, no activity) renders an empty list, not an error.
   - A transaction with a null/missing `note` field doesn't blank the row.
   - A malformed row (`null`, a bare string) in the vendor's array is skipped, not fatal to the
@@ -385,29 +425,32 @@ flowchart TB
 
 ---
 
-### U4. Unified wallet card
+### U4. Wallet card
 
-- **Goal:** render the wallet, linked gift card, and an expandable transaction ledger as one
-  customer-profile card (KTD4).
-- **Requirements:** R1, R2. (see origin: wallet card mockup, linked in Sources)
+- **Goal:** render the wallet balance, loyalty card number, and an expandable transaction ledger
+  as one customer-profile card.
+- **Requirements:** R1, R2. **Revised from the original design** (see origin: wallet card
+  mockup, linked in Sources) — the mockup showed gift card info nested in this same card; that
+  moved to U8's lookup action once live testing showed wallets and gift cards have no confirmed
+  email-based link (KTD11). Same data, different surface — an agent-invoked lookup instead of an
+  always-visible card section.
 - **Dependencies:** U2, U3.
 - **Files:**
   - `apps/rise/app/ui/templates/wallet/config.json`
   - `apps/rise/app/ui/templates/wallet/flexible.card`
-  - `apps/rise/app/ui/templates/wallet/_edit_/{default.json,zero.json}`
-  - `apps/rise/app/ui/templates/wallet/_test_/{default.json,zero.json}`
+  - `apps/rise/app/ui/templates/wallet/_edit_/{default.json,no_loyalty_card.json,zero.json}`
 - **Approach:**
-  1. Mirror the published mockup's layout: two balance cells (store credit, gift card), a field
-     list (gift card code, expiration, loyalty card number), a collapsible transaction panel.
+  1. Store credit balance, loyalty card number (when present), and a collapsible transaction
+     panel — no gift card section (removed during implementation, KTD11).
   2. Guard every optional/nested field in the card the same way the response transform already
-     guards them (U2/U3) — a card should never render "Something's wrong with this card" for a
-     merely-absent gift card or empty ledger.
-- **Patterns to follow:** the published mockup (Sources); null-field card-blanking trap in
+     guards them (U2/U3) — a card should never render "Something's wrong with this card" for an
+     empty ledger.
+- **Patterns to follow:** null-field card-blanking trap in
   `references/response-and-status-handling.md`.
 - **Test scenarios:** `Test expectation: none — visual card verification isn't an `appcfg test`
   concern; see Verification below.`
 - **Verification:** visual check via `appcfg edit ui-template wallet -d default -r apps/rise/app`
-  (and `-d zero` for the empty-wallet state) — this is a human-eyeball step, not headless.
+  (and `-d zero`, `-d no_loyalty_card`) — this is a human-eyeball step, not headless.
 
 ---
 
@@ -554,21 +597,73 @@ flowchart TB
 
 ---
 
+### U8. `lookupGiftCard` action and agent form
+
+- **Goal:** let an agent look up a customer's gift card by its exact code — the mechanism gift
+  card display moved to after KTD11's architecture correction (no confirmed email-based
+  wallet↔gift-card link exists).
+- **Requirements:** R1 (gift card info, originally scoped as part of the wallet display —
+  delivered here instead; see KTD11).
+- **Dependencies:** U1.
+- **Files:**
+  - `apps/rise/app/actions/actions_schema.graphql` (adds `LookupGiftCardResult`,
+    `lookupGiftCard` mutation)
+  - `apps/rise/app/actions/lookup_gift_card/config.json`
+  - `apps/rise/app/actions/lookup_gift_card/request_url.gtpl`
+  - `apps/rise/app/actions/lookup_gift_card/request_body.gtpl`
+  - `apps/rise/app/actions/lookup_gift_card/response_transformation.gtpl`
+  - `apps/rise/app/actions/lookup_gift_card/_test_/{success,not_found,error_400,error_500,missing_code}/`
+  - `apps/rise/app/ui/forms/lookup-gift-card/config.json`
+  - `apps/rise/app/ui/forms/lookup-gift-card/form.gtpl`
+  - `apps/rise/app/ui/forms/lookup-gift-card/action_result.gtpl`
+  - `apps/rise/app/ui/forms/lookup-gift-card/_test_/{success,not_found}/`
+- **Approach:**
+  1. `request_url.gtpl` guards on a non-empty `code` input, then targets
+     `POST /v1/rise/gift-cards/query` (confirmed-working endpoint, unlike the abandoned
+     `query_by_contact` attempt in KTD11).
+  2. `request_body.gtpl` builds `{"query": {"filter": {"code": "<code>"}}}` — the confirmed
+     equality-filter shape from Rise's "API Query Language" doc.
+  3. `response_transformation.gtpl` branches on `.response.statusCode` per the shared action
+     pattern; on 2xx, checks the `giftCards[]` array — empty means "not found" (`success: true,
+     found: false`, not an error, since a mistyped code is a normal outcome, not a failure), a
+     match returns `found: true` plus the confirmed real field names.
+  4. This is a read-only lookup exposed as a GraphQL Mutation, matching the platform's
+     convention that `ui-form`'s `--action` binds to a Mutation field regardless of the
+     underlying HTTP verb (same shape as the ShipMonk lookup-action precedent).
+  5. `form.gtpl` is a single free-text "Gift card code" field with a hint telling the agent to
+     ask the customer for it — no data-pull binding needed (unlike U6, which auto-selects the
+     wallet).
+- **Patterns to follow:** action status-branching in
+  `references/response-and-status-handling.md`; the ShipBob/ShipMonk lookup-action precedent
+  (`commands/app-platform-factory.md` §7) for the no-identity-lookup shape generally.
+- **Test scenarios:**
+  - A valid code returns the gift card's balance, initial value, currency, and expiration.
+  - A code with no match returns `found: false` with a clean "no gift card found" message, not
+    an error.
+  - A 4xx from the vendor (e.g. a malformed filter) produces a clean error envelope.
+  - A 5xx `fail`s per the shared action pattern.
+  - An empty/missing code is rejected before the request is built.
+- **Verification:** `appcfg validate`, `appcfg test`, and `appcfg test ui-form` green.
+
+---
+
 ## Verification Contract
 
 | Gate | Command | Applies to |
 |---|---|---|
 | Schema, config, template, admin-form structure | `appcfg validate -r apps/rise/app` | All units |
-| Offline `_test_` datasets | `appcfg test -r apps/rise/app` | U1, U2, U3, U5, U6 |
+| Offline `_test_` datasets | `appcfg test -r apps/rise/app` | U1, U2, U3, U5, U6, U8 |
 | Deployable artifact | `appcfg build -r apps/rise/app` | All units |
 | Card visual check | `appcfg edit ui-template wallet -d default -r apps/rise/app` | U4 |
-| Agent form check | `appcfg test ui-form` | U6 |
+| Agent form check | `appcfg test ui-form` | U6, U8 |
 | Admin form check | `appcfg validate admin-ui` | U7 |
 
 **Explicitly not in this plan's verification scope** (stage 4 of the app-platform-factory
 pipeline, not `ce-work`'s job here): `appcfg run data-graphql` / `appcfg run action-graphql`
-against a live Rise.ai sandbox — the only path that resolves the Outstanding Questions (auth
-scheme, `DECIMAL_VALUE` precision, the double-count check, parent-id filtering).
+against a live Rise.ai sandbox — the only path that resolves the remaining Outstanding Questions
+(`DECIMAL_VALUE` precision, the double-count check — now resolved by KTD11's architecture finding
+that wallets and gift cards are independent, so there is no double-count risk — and parent-id
+filtering).
 
 ## Definition of Done
 
@@ -576,13 +671,13 @@ scheme, `DECIMAL_VALUE` precision, the double-count check, parent-id filtering).
   exits 0.
 - U4's card renders correctly in both the default and zero/empty states via the UI Template
   Visualizer.
-- U6's form passes `appcfg test ui-form` for both success and no-wallet states.
+- U6's and U8's forms pass `appcfg test ui-form` for their success and no-match states.
 - U7's admin form passes `appcfg validate admin-ui` with the cap field genuinely optional.
 - U5's cap-enforcement tests (cap-exceeded, cap-unset) prove no request reaches the vendor in
   either state.
 - No dead-end or experimental code from abandoned approaches remains in the diff.
-- The six Outstanding Questions are still open in this plan's Product Contract, not silently
-  resolved by a guess — they carry into stage 4.
+- The remaining Outstanding Questions are still open in this plan's Product Contract, not
+  silently resolved by a guess — they carry into stage 4.
 
 ---
 

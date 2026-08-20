@@ -1,0 +1,8 @@
+{
+  "action": {
+    "graphqlField": "lookupGiftCard",
+    "graphqlOperation": "mutation"
+  },
+  "formData": [
+  ]
+}

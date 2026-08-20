@@ -1,7 +1,7 @@
 ---
 vendor: rise
-current_stage: 1
-updated: 2026-08-19
+current_stage: 3
+updated: 2026-08-20
 ---
 
 # Rise — App Platform factory state
@@ -13,19 +13,20 @@ reconciles this file to match (detection wins on conflict). Safe to delete; it r
 | # | Stage | Status | Proof | Artifact |
 |---|-------|--------|-------|----------|
 | 1 | scope | ✅ | Ledger drafted + 3-lens reviewed (2 P0s found + fixed); card mockup published; signed off 2026-08-19 (Matthew Albert) | `docs/rise/BUILD-SCOPE.md` |
-| 2 | plan | ⬜ | — | `docs/plans/<date>-NNN-feat-rise-*-plan.md` |
-| 3 | build | ⬜ | — | `apps/rise/app/manifest.json` |
-| 4 | validate | ⬜ | — | live-data / `appcfg run data-graphql` result |
+| 2 | plan | ✅ | Implementation-ready plan, doc-reviewed (5 findings, 7 auto-fixed) | `docs/plans/2026-08-19-001-feat-rise-wallet-app-plan.md` |
+| 3 | build | 🔄 | U1-U8 built and green (`make all` passing); one critical fix (int64-overflow cap bypass, code review) and one architecture correction (gift card moved to a lookup action, KTD11) applied mid-build | `apps/rise/app/manifest.json` |
+| 4 | validate | 🔄 | Auth scheme + wallet query format + 404 shape confirmed live (2026-08-20); wallet success-body shape and DECIMAL_VALUE precision still unconfirmed (every live wallet probe hit 404) | live-data / `appcfg run data-graphql` result |
 | 5 | UAT | ⬜ | — | `docs/rise/<date>-rise-uat-edge-case-loop.md` |
 | 6 | ship | ⬜ | — | `docs/rise/<date>-rise-launch-plan.md` |
 | 7 | document | ⬜ | — | `docs/rise/rise-on-app-platform-help-center.docx` |
 
 Status: ⬜ not started · 🔄 in progress · ✅ complete (proof recorded).
 
-Build repo: `~/rise` · remote: not yet created (local-only; no push has occurred).
+Build repo: `~/rise` · remote: `matthewalbert-tech/rise` (private) · branch `feat/rise-wallet-app`.
 
-Proof surfaces (record which are met, keep separate): local · pushed · ported · merged ·
-deployed · live. Ship-stage surfaces that aren't met yet are handoff items, not done.
+Proof surfaces (record which are met, keep separate): local (✅, `make all` green) · pushed (✅) ·
+ported · merged · deployed · live. Ship-stage surfaces that aren't met yet are handoff items, not
+done.
 
 ## Sign-off decisions
 Track every human decision the scope/plan stages surfaced — number them, record the answer +
@@ -36,11 +37,13 @@ date when resolved.
 3. **C8** — v1 ships per-transaction cap only; no cumulative/velocity limit yet. — ✅ resolved 2026-08-19
 4. **C11** — Ledger-line loyalty treatment accepted for v1. — ✅ resolved 2026-08-19
 5. **C12** — Refund action confirmed deferred, not in v1. — ✅ resolved 2026-08-19
+6. **KTD11** — Gift card moved from a nested wallet field to an agent-invoked lookup action (`lookupGiftCard`) after live testing found no confirmed email-based wallet↔gift-card link. Same data, different surface. — ✅ resolved 2026-08-20 (approved live, mid-build)
 
 ## Remaining open items
-- **Key rotation/revocation ownership unassigned** (C9) — needs an owner before go-live, not before build; carry into stage 2 (plan) so it doesn't get lost.
+- **Key rotation/revocation ownership unassigned** (C9) — needs an owner before go-live, not before build.
 - Cumulative/velocity cap (C8) — named residual, not blocking v1, revisit if usage warrants it.
 - Signal freshness: AG Jeans citation is ~18mo old, post-close — confirm pain point still live (optional, non-blocking).
-- Broader Slack-based demand search once Slack MCP is authorized (optional, non-blocking).
-- Pre-build sandbox verification (`BUILD-SCOPE.md` gate, `SCOPING.md` §7 — 12 items) — none arranged yet; needed before stage 4 (validate), and specifically before stage 3→4 for the `issue_store_credit` cap (item 4, wallet/gift-card double-count).
+- **Wallet success-body shape unconfirmed** — every live wallet probe (by email) returned 404 `WALLET_NOT_FOUND`; the real customer tested has a gift card but apparently no wallet record. Need a customer/test case with an actual store-credit wallet to confirm `balance` field precision/wire-format and finish stage 4.
 - Refund mechanism (C12) unresolved — revisit via sandbox before Phase 2 scoping, not a v1 concern.
+- `wallet_actions/query` parent-id filter support (needed for U3's transaction chaining) — not yet live-verified.
+- Rise.ai's `POST /v1/rise/wallets/query_by_contact` endpoint (which returns wallets with embedded gift card info) has a broken/non-representative docs example — four filter-shape guesses were rejected as `UNSUPPORTED_FILTER`. If a future phase wants the fully-automatic unified card back, this needs a real example from Rise.ai support, not further guessing.

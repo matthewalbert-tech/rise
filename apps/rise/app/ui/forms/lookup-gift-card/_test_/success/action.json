@@ -1,0 +1,14 @@
+{
+  "inputs": {
+    "code": "ZF6XDMRGKTCN2XYZ1234"
+  },
+  "result": {
+    "success": true,
+    "found": true,
+    "code": "ZF6XDMRGKTCN2XYZ1234",
+    "balance": "1.00",
+    "initialValue": "1.00",
+    "currency": "USD",
+    "expirationDate": "2027-08-20T00:00:00Z"
+  }
+}

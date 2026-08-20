@@ -1,0 +1,10 @@
+{
+  "inputs": {
+    "code": "BOGUSCODE0000000000"
+  },
+  "result": {
+    "success": true,
+    "found": false,
+    "message": "No gift card found with that code."
+  }
+}

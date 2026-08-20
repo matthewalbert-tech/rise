@@ -5,6 +5,22 @@ type IssueStoreCreditResult {
   message: String
 }
 
+"""Result of a gift card lookup by exact code. Rise.ai gift cards have no confirmed
+email-based lookup, so this is an agent-invoked lookup action, not part of the
+auto-pulling wallet card (see docs/rise/SCOPING.md architecture note, 2026-08-20)."""
+type LookupGiftCardResult {
+  success: Boolean!
+  found: Boolean
+  code: String
+  balance: String
+  initialValue: String
+  currency: String
+  expirationDate: String
+  disableDate: String
+  message: String
+}
+
 type Mutation {
   issueStoreCredit(walletId: String!, amount: String!, note: String, confirm: String!): IssueStoreCreditResult @action(name: "issue_store_credit")
+  lookupGiftCard(code: String!): LookupGiftCardResult @action(name: "lookup_gift_card")
 }
