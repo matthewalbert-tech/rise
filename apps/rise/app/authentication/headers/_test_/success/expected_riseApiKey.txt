@@ -1,1 +1,1 @@
-test_key_abc123
+Bearer test_key_abc123

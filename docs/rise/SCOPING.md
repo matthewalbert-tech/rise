@@ -262,8 +262,8 @@ above. This is exactly the failure mode the 3-lens step exists to catch before b
 
 | # | Item | Blocks | Status |
 |---|---|---|---|
-| 1 | Auth header scheme: raw key vs. `Bearer` (C4) | all pulls/actions | 🔎 needs-sandbox |
-| 2 | Wallet/wallet-action 200-vs-error-on-empty and undocumented error shapes (C5) | wallet data pull transform | 🔎 needs-sandbox |
+| 1 | Auth header scheme: raw key vs. `Bearer` (C4) | all pulls/actions | ✅ **resolved 2026-08-20 live**: `authorization: Bearer YOUR_API_TOKEN` (lowercase header), confirmed via dev.rise.ai's rendered "Get Wallet" doc and a live 404 (past auth) against `platform.rise.ai`. Also discovered: the query param is dot-notation (`query.email=`, not `email=` or a JSON blob) — not previously anticipated at all. |
+| 2 | Wallet/wallet-action 200-vs-error-on-empty and undocumented error shapes (C5) | wallet data pull transform | ✅ **partially resolved 2026-08-20 live**: a nonexistent wallet is a real `404` — `{"message":"Wallet not found","details":{"applicationError":{"code":"WALLET_NOT_FOUND"}}}` — not a `200` with an empty body. KTD6's "no-wallet vs. broken-key collapse into the same no-card outcome" tradeoff is confirmed real (both still produce a failed pull today) with a clean, distinguishable error code available if `rawResponse: true` handling is added later. Full success-body shape (field names, `DECIMAL_VALUE` format) still needs a real wallet to test against. |
 | 3 | Exact `DECIMAL_VALUE` wire format, read AND write path (C3) | schema typing + `issue_store_credit` request body | 🔎 needs-sandbox |
 | 4 | **Wallet vs. gift-card double-count** (C10) | **`issue_store_credit` cap validity — blocks stage 3→4 for this action, not just Phase-2 scope-in** | 🔎 needs-sandbox — **elevated from v0.1** |
 | 5 | `wallet_actions/query` server-side filter by wallet/customer id (3c, C10) | transaction Data Type chaining | 🔎 needs-sandbox |

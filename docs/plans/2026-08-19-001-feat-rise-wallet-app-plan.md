@@ -79,10 +79,14 @@ All items below are execution-time verification, not product/architecture blocke
 back `implementation-ready`. They're pre-build gate items in `docs/rise/BUILD-SCOPE.md`, carried
 here so the implementer doesn't lose them:
 
-- Auth header scheme: raw key vs. `Bearer` — docs disagree with themselves. **Deferred** to stage
-  4 live verification.
+- ~~Auth header scheme: raw key vs. `Bearer`~~ **Resolved 2026-08-20, live:** confirmed `Bearer`
+  against `platform.rise.ai` (a 404 proves auth passed). U1's `riseApiKey.gtpl` and its test
+  fixtures updated. Also discovered live and fixed: the wallet lookup's query parameter is
+  dot-notation (`query.email=`), not `email=` as originally assumed — neither the vendor docs
+  research nor this plan anticipated that shape.
 - `DECIMAL_VALUE` wire format on both the wallet pull (read) and the issue-credit action (write).
-  **Deferred** to stage 4.
+  **Deferred** to stage 4 — still needs a real wallet response to inspect actual field names and
+  precision (the 2026-08-20 live probe only reached a 404 "not found" case).
 - Wallet vs. gift-card double-count — blocks trusting `issueStoreCredit`'s cap live, not blocks
   building it. **Deferred** to stage 4.
 - Whether the transaction-query endpoint filters server-side by wallet id (needed for U3's

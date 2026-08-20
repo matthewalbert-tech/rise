@@ -1,1 +1,1 @@
-https://platform.rise.ai/v1/rise/wallets?email=primary%40email.com
+https://platform.rise.ai/v1/rise/wallets?query.email=primary%40email.com
