@@ -1,0 +1,8 @@
+{
+  "dataType": {
+    "name": "rise_wallet",
+    "version": "1.0"
+  },
+  "httpMethod": "GET",
+  "rawResponse": false
+}

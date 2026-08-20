@@ -1,0 +1,21 @@
+"""Gift card linked to a Rise.ai wallet."""
+type RiseGiftCardSummary {
+  id: String!
+  code: String!
+  balance: String!
+  expiresAt: String
+  status: String!
+}
+
+"""Rise.ai wallet -- store credit balance, linked gift card, and loyalty identifier."""
+type RiseWallet @dataType(name: "rise_wallet", version: "1.0") {
+  id: String!
+  balance: String!
+  currency: String!
+  loyaltyCardNumber: String
+  giftCard: RiseGiftCardSummary
+}
+
+type Query {
+  wallet: RiseWallet
+}

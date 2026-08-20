@@ -1,0 +1,12 @@
+{
+  "id": "wal_5d2f77",
+  "balance": "40.00",
+  "currency": "USD",
+  "giftCard": {
+    "id": "gc_1a2b3c",
+    "code": "RISE-1A2B-3C4D",
+    "balance": "10.00",
+    "status": "active",
+    "expiresAt": "2027-01-15"
+  }
+}

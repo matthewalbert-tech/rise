@@ -1,0 +1,17 @@
+{
+  "rise_wallet": [
+    {
+      "id": "wal_9f1c2a",
+      "balance": "84.00",
+      "currency": "USD",
+      "loyaltyCardNumber": "LC-118820",
+      "giftCard": {
+        "id": "gc_7f2k9qxm",
+        "code": "RISE-7F2K-9QXM",
+        "balance": "25.00",
+        "status": "active",
+        "expiresAt": "2026-11-03"
+      }
+    }
+  ]
+}
