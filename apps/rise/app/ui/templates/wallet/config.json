@@ -1,0 +1,5 @@
+{
+  "description": "Rise.ai Wallet",
+  "graphqlSchema": "data",
+  "graphqlType": "RiseWallet"
+}

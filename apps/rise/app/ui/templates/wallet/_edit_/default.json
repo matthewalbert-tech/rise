@@ -1,0 +1,36 @@
+{
+  "id": "wal_9f1c2a",
+  "balance": "84.00",
+  "currency": "USD",
+  "loyaltyCardNumber": "LC-118820",
+  "giftCard": {
+    "id": "gc_7f2k9qxm",
+    "code": "RISE-7F2K-9QXM",
+    "balance": "25.00",
+    "status": "active",
+    "expiresAt": "2026-11-03"
+  },
+  "transactions": [
+    {
+      "id": "txn_001",
+      "type": "REWARD",
+      "amount": "12.00",
+      "createdAt": "2026-07-28T08:00:00Z",
+      "note": "loyalty accrual"
+    },
+    {
+      "id": "txn_002",
+      "type": "ISSUE",
+      "amount": "40.00",
+      "createdAt": "2026-07-14T10:00:00Z",
+      "note": "order #10432 return"
+    },
+    {
+      "id": "txn_003",
+      "type": "REDEEM",
+      "amount": "-32.00",
+      "createdAt": "2026-06-02T09:15:00Z",
+      "note": "order #10310"
+    }
+  ]
+}

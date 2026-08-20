@@ -1,0 +1,14 @@
+{
+  "id": "wal_3b8e01",
+  "balance": "12.50",
+  "currency": "USD",
+  "loyaltyCardNumber": "LC-220091",
+  "transactions": [
+    {
+      "id": "txn_020",
+      "type": "ISSUE",
+      "amount": "15.00",
+      "createdAt": "2026-05-01T12:00:00Z"
+    }
+  ]
+}
