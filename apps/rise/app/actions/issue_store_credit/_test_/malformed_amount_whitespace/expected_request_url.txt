@@ -1,0 +1,1 @@
+https://platform.rise.ai/v1/rise/wallet_actions/issue_store_credit

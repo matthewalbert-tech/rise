@@ -177,12 +177,18 @@ here so the implementer doesn't lose them:
     distinguishes them for the agent. Distinguishing them would require `rawResponse: true`
     handling; out of scope for this plan, named here so it isn't mistaken for an oversight at
     review time.
-- KTD7. The `issueStoreCredit` result state echoes the Rise `transactionId` **and the acting
-  Gladly agent's identity** alongside the new balance, so the Gladly timeline entry is queryable
-  against Rise's own audit log **and** attributable to a specific agent (addresses the
-  attribution gap named in `docs/rise/SCOPING.md` C13). `transactionId` alone proves an
-  issuance happened against the merchant's shared API key; it does not identify who triggered
-  it — the agent identity is the missing half (security review).
+- KTD7. **Corrected during implementation (U5).** The `issueStoreCredit` result state echoes
+  the Rise `transactionId` alongside the new balance, so the Gladly timeline entry is queryable
+  against Rise's own audit log. It does **not** additionally echo "the acting agent's identity"
+  as originally drafted here — feasibility and adversarial review independently found that
+  action templates receive no context beyond integration secrets and explicit inputs (the same
+  constraint KTD1 already worked around for `walletId`), and no documented mechanism exposes
+  agent identity to `response_transformation.gtpl`. The attribution goal from
+  `docs/rise/SCOPING.md` C13 still holds, but is met by Gladly's own conversation timeline,
+  which already attributes every action event to the agent who triggered it as a platform-level
+  feature — `transactionId` is the cross-reference key a human uses to correlate that
+  already-attributed timeline entry with Rise's own audit log, not a field this action needs to
+  fabricate.
 - KTD8. **Shared monetary/null-guard convention, named once:** every response transform touching
   a Rise.ai monetary field renders it as a plain numeric string with no currency symbol at the
   vendor's native precision, and builds its output `dict` with always-present scalars first,
@@ -383,9 +389,19 @@ flowchart TB
      (KTD5, KTD9) — the exact precision match is an Outstanding Question, not a build blocker.
      `idempotencyKey` is generated once per form instance at open time and reused on
      resubmission (KTD9) — U6 owns the generation point, this unit just passes it through.
-  3. `response_transformation.gtpl` branches on `.response.statusCode`: 2xx echoes
-     `transactionId`, the acting agent's identity, and `newBalance` (KTD7) into the result; the
-     full 4xx range becomes a clean error envelope; anything else `fail`s.
+  3. `response_transformation.gtpl` branches on `.response.statusCode`: 2xx returns `success:
+     true` plus `transactionId` and `newBalance` (KTD7, corrected — no agent-identity field; see
+     above); the full 4xx range returns `success: false` plus a `message`; anything else `fail`s.
+  4. **Implementation-time correction:** the mutation takes flat arguments
+     (`issueStoreCredit(walletId: String!, amount: String!, note: String, idempotencyKey:
+     String!)`), not an `input IssueStoreCreditInput!` wrapper object as drafted in
+     `docs/rise/BUILD-SCOPE.md` — `appcfg validate`'s static template/schema cross-check rejects
+     `.inputs.<field>` references when they're wrapped in an unwrapped input type. `.inputs.<x>`
+     resolves directly to each flat argument.
+  5. **Implementation-time correction:** the platform's template functions don't include Sprig's
+     `atof`; the cap-vs-amount comparison converts both values to integer cents
+     (`int64 (replace "." "" $amount)`) instead, which is exact for two-decimal amounts and
+     avoids floating-point comparison risk entirely.
 - **Execution note:** test-first for the cap-enforcement guard specifically — write the
   cap-exceeded, cap-unset, zero/negative-amount, and malformed-amount test cases before the
   `stop` logic passes them. This is the single point of failure preventing over-issuance (see
@@ -402,8 +418,11 @@ flowchart TB
   - Negative amount is blocked (fail-closed) — a negative "issuance" would function as an
     undisclosed debit if it slipped past a purely numeric cap comparison (security review).
   - Malformed numeric-string amount is blocked: trailing garbage (`"50.00.01"`), exponential
-    notation (`"5e3"`), leading zeros, an embedded currency symbol, and surrounding whitespace
-    each fail closed rather than being silently coerced (security review; KTD3 addendum).
+    notation (`"5e3"`), leading zeros, and an embedded currency symbol each fail closed rather
+    than being silently coerced (security review; KTD3 addendum). Surrounding whitespace is
+    trimmed and then validated normally — trimming pure padding doesn't change the amount's
+    value or introduce ambiguity the way the other malformed shapes do, so it's safe
+    normalization rather than a coercion risk (implementation-time refinement).
   - Vendor success in multiple shapes: full object, bare `true`, `{}`.
   - Each of 400/404/422/500 produces a clean, distinct error envelope.
   - Missing or empty `amount` input is rejected before the request is sent.

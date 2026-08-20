@@ -1,0 +1,10 @@
+type IssueStoreCreditResult {
+  success: Boolean!
+  transactionId: String
+  newBalance: String
+  message: String
+}
+
+type Mutation {
+  issueStoreCredit(walletId: String!, amount: String!, note: String, idempotencyKey: String!): IssueStoreCreditResult @action(name: "issue_store_credit")
+}

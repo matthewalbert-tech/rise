@@ -1,0 +1,8 @@
+{
+  "configuration": {
+    "storeCreditCap": "50.00"
+  },
+  "secrets": {
+    "apiKey": "test_key_abc123"
+  }
+}

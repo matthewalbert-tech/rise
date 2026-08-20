@@ -1,0 +1,1 @@
+"Store credit issuance is not enabled. Configure a per-transaction cap in the app settings to allow this action."

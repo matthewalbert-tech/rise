@@ -1,0 +1,7 @@
+{
+  "configuration": {
+  },
+  "secrets": {
+    "apiKey": "test_key_abc123"
+  }
+}
