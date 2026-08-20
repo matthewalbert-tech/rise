@@ -1,0 +1,35 @@
+{
+  "title": "Configure Rise.ai",
+  "sections": [
+    {
+      "type": "input",
+      "label": "Rise.ai Account ID",
+      "attr": "configuration.riseAccountId",
+      "input": {
+        "type": "text",
+        "placeholder": "acct_xxxxxxxx"
+      },
+      "hint": "Found in your Rise.ai dashboard under Account Settings."
+    },
+    {
+      "type": "input",
+      "label": "API Key",
+      "attr": "secrets.apiKey",
+      "input": {
+        "type": "text",
+        "placeholder": "Enter your Rise.ai API key"
+      },
+      "hint": "Generate a key in your Rise.ai dashboard under Developer Settings."
+    },
+    {
+      "type": "input",
+      "label": "Per-Transaction Store Credit Cap",
+      "attr": "configuration.storeCreditCap",
+      "input": {
+        "type": "text",
+        "placeholder": "50.00"
+      },
+      "hint": "Maximum amount an agent can issue in a single store credit action, e.g. 50.00. Leave blank to disable store credit issuance until a cap is set."
+    }
+  ]
+}
