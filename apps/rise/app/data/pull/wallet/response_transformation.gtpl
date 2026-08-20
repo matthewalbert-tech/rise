@@ -1,7 +1,8 @@
 {{- /* Envelope confirmed live 2026-08-20: response is {"wallet": {...}}, not a bare object.
 A wallet's balance/currency/code come from the embedded giftCardInfo, not top-level fields --
 defensively check for a top-level balance first in case a wallet with no gift card ever
-surfaces one directly, per the vendor's own schema mismatch pattern seen elsewhere. */ -}}
+surfaces one directly, per the vendor's own schema mismatch pattern seen elsewhere. Loyalty
+card number dropped per user decision 2026-08-20. */ -}}
 {{- if not (and (kindIs "map" .rawData) (kindIs "map" .rawData.wallet)) -}}
   {{- stop "Rise.ai wallet response was not in the expected shape." -}}
 {{- end -}}
@@ -17,8 +18,5 @@ surfaces one directly, per the vendor's own schema mismatch pattern seen elsewhe
 {{- else -}}
   {{- $_ := set $out "balance" "0.00" -}}
   {{- $_ := set $out "currency" "USD" -}}
-{{- end -}}
-{{- if $w.loyalty_card_number -}}
-  {{- $_ := set $out "loyaltyCardNumber" ($w.loyalty_card_number | toString) -}}
 {{- end -}}
 {{- $out | toJson -}}

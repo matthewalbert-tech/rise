@@ -10,14 +10,13 @@ type RiseWalletTransaction @dataType(name: "rise_wallet_transaction", version: "
 """Rise.ai wallet -- live-confirmed 2026-08-20: a Wallet's balance is not a distinct field --
 it's backed by an embedded gift card (rawData.wallet.giftCardInfo). A customer can also have a
 bare gift card with NO wallet wrapper (confirmed separately) -- that case has no email-based
-lookup and is served by the lookupGiftCard action instead. loyaltyCardNumber's source is still
-unconfirmed."""
+lookup and is served by the lookupGiftCard action instead. Loyalty card number dropped from
+scope per user decision 2026-08-20 -- not pursued further."""
 type RiseWallet @dataType(name: "rise_wallet", version: "1.0") {
   id: String!
   balance: String!
   currency: String!
   giftCardCode: String
-  loyaltyCardNumber: String
   transactions: [RiseWalletTransaction] @parentId(template: "{{.id}}")
 }
 
