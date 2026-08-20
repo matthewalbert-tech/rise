@@ -2,5 +2,5 @@
   "walletId": "wal_9f1c2a",
   "amount": "025.00",
   "note": "",
-  "idempotencyKey": "idem_008"
+  "confirm": "approve"
 }

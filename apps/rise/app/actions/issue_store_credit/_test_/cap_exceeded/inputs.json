@@ -2,5 +2,5 @@
   "walletId": "wal_9f1c2a",
   "amount": "75.00",
   "note": "goodwill credit",
-  "idempotencyKey": "idem_002"
+  "confirm": "approve"
 }

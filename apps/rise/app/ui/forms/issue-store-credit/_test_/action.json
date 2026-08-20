@@ -1,0 +1,13 @@
+{
+  "inputs": {
+    "walletId": "wal_9f1c2a",
+    "amount": "25.00",
+    "note": "damaged item goodwill credit",
+    "confirm": "approve"
+  },
+  "result": {
+    "success": true,
+    "transactionId": "txn_555",
+    "newBalance": "109.00"
+  }
+}

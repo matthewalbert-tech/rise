@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "walletId": "wal_9f1c2a",
+    "amount": "999.00",
+    "note": "",
+    "confirm": "approve"
+  },
+  "result": {
+    "success": false,
+    "message": "Amount exceeds the per-transaction cap of 50.00."
+  }
+}

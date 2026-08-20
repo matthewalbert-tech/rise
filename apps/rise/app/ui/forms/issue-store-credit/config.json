@@ -1,0 +1,12 @@
+{
+  "action": {
+    "graphqlField": "issueStoreCredit",
+    "graphqlOperation": "mutation"
+  },
+  "formData": [
+    {
+      "graphqlField": "wallet",
+      "graphqlSchema": "data"
+    }
+  ]
+}

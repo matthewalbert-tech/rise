@@ -100,10 +100,18 @@ here so the implementer doesn't lose them:
   — KTD5's `String` typing decision assumes string representation; if stage 4 finds a bare
   number instead, that's a schema-field-type correction, not a template tweak. **Deferred** to
   stage 4 (doc-review, adversarial).
-- Whether Rise.ai's `issue_store_credit` endpoint actually deduplicates server-side on a
-  client-supplied `idempotencyKey` (KTD9), and what TTL, if any, applies relative to
-  form-open-to-submit timing. Offline tests can only prove the app sends the same key twice, not
-  that Rise honors it. **Deferred** to stage 4 (doc-review, adversarial).
+- Whether Rise.ai's `issue_store_credit` endpoint actually deduplicates server-side on the
+  `idempotencyKey` sent (KTD9, revised — now the action's `.correlationId`), and whether
+  `.correlationId` itself stays stable across a client-side resubmission after a timeout (the
+  property the mechanism depends on) or is minted fresh per HTTP call. Offline tests can only
+  prove the app sends a deterministic value per invocation, not that it's stable across retries
+  or that Rise honors it. **Deferred** to stage 4 (doc-review, adversarial; refined U6).
+- Whether the App Platform sends any agent-identifying header (e.g. an equivalent of the
+  documented Gladly-Agent-Id header on the older Lookup Adaptor framework) to the vendor on
+  outbound action requests. If it does, Rise.ai's own audit log gets agent attribution for free
+  and KTD7's correction is stronger than stated; if this is Lookup-Adaptor-only, Gladly's own
+  timeline remains the sole attribution mechanism. **Deferred** to stage 4 (found during U6
+  research; not confirmed either way for appcfg-based apps).
 
 ### Sources
 
@@ -127,8 +135,10 @@ here so the implementer doesn't lose them:
   `docs/rise/BUILD-SCOPE.md` C10's requirement for a third Data Type beyond the original two)
   **`RiseWallet.id` is the field that closes the card→action loop**: it renders on the card
   (implicitly, as the pull's identity) and is the same value U6's agent form auto-selects as a
-  hidden input bound to the wallet pull — the standard "form bound to a data pull, no customer
-  context" idiom (see U6). This is the specific mechanism deepening flagged as missing: without
+  single-option `select` input bound to the wallet pull — the platform has no "hidden" input
+  type (only `text`/`select`/`checkbox` are valid, confirmed by `appcfg validate` at
+  implementation time), so a one-option select is the closest equivalent to "auto-bound, not
+  agent-typed" (see U6). This is the specific mechanism deepening flagged as missing: without
   naming this field, nothing threads a wallet identifier from the card into
   `issueStoreCredit`'s input.
 - KTD2. Auth is a **static per-merchant API key** (`apiKey` + `riseAccountId` config fields), not
@@ -196,11 +206,15 @@ here so the implementer doesn't lose them:
   null-nested-field pattern in `references/response-and-status-handling.md`. U2 and U3 cite this
   convention rather than each restating it, so their implementations can't silently diverge
   (pattern review).
-- KTD9. **`idempotencyKey` is generated once per form instance, at form open, not per submit
-  click**, and is reused on a resubmission of the same form (double-click, or retry after a
-  timeout). Generating a fresh key per submit attempt would defeat the mechanism's purpose:
-  a double-click or timeout-retry would mint two distinct, both-valid Rise.ai transactions
-  instead of being deduplicated (flow review).
+- KTD9. **Revised during implementation (U6).** `idempotencyKey` is not an agent-visible form
+  field. Form templates only receive `data`/`actions`/`customer` — no request-scoped or random
+  primitive exists there, and a `uuidv4`-generated value can't be snapshot-tested (`appcfg
+  test`'s JSON comparison is exact-match, not partial). Instead, `request_body.gtpl` sends the
+  action's own `.correlationId` as the idempotency key — a value the platform already provides
+  per action invocation, deterministic in tests, and requiring no agent-facing field at all
+  (simpler than the original hidden-field design). Whether `.correlationId` stays stable across
+  a client-side resubmission after a timeout (the property this mechanism needs) is unconfirmed
+  — see Outstanding Questions.
 
 ### High-Level Technical Design
 
@@ -370,38 +384,44 @@ flowchart TB
 - **Requirements:** R3, R4.
 - **Dependencies:** U1, U2 (wallet id is the action's required input).
 - **Files:**
-  - `apps/rise/app/actions/actions_schema.graphql` (adds `IssueStoreCreditInput`,
-    `IssueStoreCreditResult`, `issueStoreCredit` mutation — signatures already drafted in
-    `docs/rise/BUILD-SCOPE.md`)
+  - `apps/rise/app/actions/actions_schema.graphql` (adds `IssueStoreCreditResult` and a flat-arg
+    `issueStoreCredit(walletId: String!, amount: String!, note: String, confirm: String!)`
+    mutation — **not** the `input IssueStoreCreditInput!` wrapper drafted in
+    `docs/rise/BUILD-SCOPE.md`; see correction below)
   - `apps/rise/app/actions/issue_store_credit/config.json`
   - `apps/rise/app/actions/issue_store_credit/request_url.gtpl`
   - `apps/rise/app/actions/issue_store_credit/request_body.gtpl`
   - `apps/rise/app/actions/issue_store_credit/response_transformation.gtpl`
-  - `apps/rise/app/actions/issue_store_credit/_run_/data/default/inputs.json`
-  - `apps/rise/app/actions/issue_store_credit/_test_/data/{cap_ok,cap_exceeded,cap_unset,zero_amount,negative_amount,malformed_amount,success_full_object,success_bare_true,error_400,error_404,error_422,error_500,missing_amount,idempotency_resubmit}/`
+  - `apps/rise/app/actions/issue_store_credit/_test_/{cap_ok,cap_exceeded,cap_unset,zero_amount,negative_amount,malformed_amount_trailing_garbage,malformed_amount_exponential,malformed_amount_leading_zeros,malformed_amount_currency_symbol,malformed_amount_whitespace,confirm_missing,confirm_mismatch,wallet_missing,success_full_object,success_bare_true,error_400,error_404,error_422,error_500,missing_amount,idempotency_resubmit}/`
+    (flat under `_test_/`, not `_test_/data/` — the scaffold's real convention)
 - **Approach:**
-  1. `request_url.gtpl` reads the merchant cap from `.integration.configuration` and `stop`s
-     before building the request if the cap is unset, the input amount exceeds it, or the
-     amount is zero, negative, or a malformed numeric string (KTD3's strict-parsing addendum).
-     A `stop` here is terminal — the response transform never runs for a guarded submission
-     (KTD3's guard-stop addendum).
-  2. `request_body.gtpl` serializes `amount` as a string, plus `note` and `idempotencyKey`
-     (KTD5, KTD9) — the exact precision match is an Outstanding Question, not a build blocker.
-     `idempotencyKey` is generated once per form instance at open time and reused on
-     resubmission (KTD9) — U6 owns the generation point, this unit just passes it through.
+  1. `request_url.gtpl` `stop`s, in order, if: `walletId` is empty (defense in depth against the
+     form's no-wallet placeholder, see U6); `confirm` isn't exactly `"approve"` (KTD3); the
+     amount fails strict numeric parsing or is zero; the merchant cap is unset or invalid; or the
+     amount exceeds the cap. A `stop` is terminal — the response transform never runs for a
+     guarded submission (KTD3's guard-stop addendum).
+  2. `request_body.gtpl` serializes `amount` as a string, plus `note` when present, plus
+     `idempotencyKey` set to `.correlationId` (KTD9, revised — see below), and does **not**
+     forward `confirm` to the vendor (Gladly-side gate only).
   3. `response_transformation.gtpl` branches on `.response.statusCode`: 2xx returns `success:
      true` plus `transactionId` and `newBalance` (KTD7, corrected — no agent-identity field; see
      above); the full 4xx range returns `success: false` plus a `message`; anything else `fail`s.
-  4. **Implementation-time correction:** the mutation takes flat arguments
-     (`issueStoreCredit(walletId: String!, amount: String!, note: String, idempotencyKey:
-     String!)`), not an `input IssueStoreCreditInput!` wrapper object as drafted in
-     `docs/rise/BUILD-SCOPE.md` — `appcfg validate`'s static template/schema cross-check rejects
-     `.inputs.<field>` references when they're wrapped in an unwrapped input type. `.inputs.<x>`
-     resolves directly to each flat argument.
+  4. **Implementation-time correction:** the mutation takes flat arguments, not an `input`
+     wrapper object as drafted in `docs/rise/BUILD-SCOPE.md` — `appcfg validate`'s static
+     template/schema cross-check rejects `.inputs.<field>` references under a wrapped input
+     type. `.inputs.<x>` resolves directly to each flat argument.
   5. **Implementation-time correction:** the platform's template functions don't include Sprig's
      `atof`; the cap-vs-amount comparison converts both values to integer cents
-     (`int64 (replace "." "" $amount)`) instead, which is exact for two-decimal amounts and
-     avoids floating-point comparison risk entirely.
+     (`int64 (replace "." "" $amount)`) instead, exact for two-decimal amounts and avoiding
+     floating-point comparison risk entirely.
+  6. **Implementation-time correction (KTD9):** `idempotencyKey` is not a client-supplied input
+     at all — it was dropped from the mutation's arguments. It's set from the action's own
+     `.correlationId`, which `appcfg`'s action templates receive natively and which is
+     deterministic in `_test_` fixtures (unlike a `uuidv4` generated in the form, which can't be
+     snapshot-tested — see U6).
+  7. **Implementation-time addition:** `confirm` (KTD3's typed-approve field) is a real mutation
+     argument, checked via exact string equality — not part of the original drafted schema, but
+     required to actually implement the GUARDED confirmation the ledger specified.
 - **Execution note:** test-first for the cap-enforcement guard specifically — write the
   cap-exceeded, cap-unset, zero/negative-amount, and malformed-amount test cases before the
   `stop` logic passes them. This is the single point of failure preventing over-issuance (see
@@ -409,28 +429,27 @@ flowchart TB
 - **Patterns to follow:** the GUARDED idiom (`docs/rise/BUILD-SCOPE.md` C8); action
   status-branching in `references/response-and-status-handling.md`.
 - **Test scenarios:**
-  - Amount under the cap succeeds.
-  - Amount exactly at the cap succeeds.
-  - Amount over the cap is blocked before the request is sent.
-  - Cap unset is blocked (fail-closed) before the request is sent.
-  - Zero amount is blocked (fail-closed), same guard path as an over-cap amount, not folded
-    into "missing/empty input" (security review).
-  - Negative amount is blocked (fail-closed) — a negative "issuance" would function as an
-    undisclosed debit if it slipped past a purely numeric cap comparison (security review).
+  - Amount under the cap succeeds; amount exactly at the cap succeeds.
+  - Amount over the cap, cap unset, zero amount, and negative amount are each blocked
+    (fail-closed) before the request is sent, each with a distinct message (security review).
   - Malformed numeric-string amount is blocked: trailing garbage (`"50.00.01"`), exponential
     notation (`"5e3"`), leading zeros, and an embedded currency symbol each fail closed rather
     than being silently coerced (security review; KTD3 addendum). Surrounding whitespace is
     trimmed and then validated normally — trimming pure padding doesn't change the amount's
     value or introduce ambiguity the way the other malformed shapes do, so it's safe
     normalization rather than a coercion risk (implementation-time refinement).
-  - Vendor success in multiple shapes: full object, bare `true`, `{}`.
+  - Missing `confirm` and a case-mismatched `confirm` (`"Approve"`) are both blocked.
+  - Empty `walletId` is blocked (defense in depth against U6's no-wallet placeholder option).
+  - Vendor success in multiple shapes: full object, bare `true`.
   - Each of 400/404/422/500 produces a clean, distinct error envelope.
-  - Missing or empty `amount` input is rejected before the request is sent.
-  - A resubmission of the same form instance (same `idempotencyKey`) after a simulated timeout
-    does not produce a second distinct request (KTD9; flow review).
-- **Verification:** `appcfg validate` and `appcfg test` green; the cap and amount-validation
-  tests together prove no code path reaches the vendor with an over-cap, unset-cap, zero,
-  negative, or malformed-amount request.
+  - Missing `amount` input is rejected before the request is sent.
+  - The same inputs (including the same `.correlationId`) produce byte-identical request bodies
+    across repeated renders — proving the template has no hidden non-determinism that would
+    defeat idempotency (KTD9, revised; this is what "idempotency_resubmit" actually verifies now
+    that the key is platform-provided, not client-generated).
+- **Verification:** `appcfg validate` and `appcfg test` green; the cap, confirm, and
+  amount-validation tests together prove no code path reaches the vendor with an over-cap,
+  unset-cap, zero, negative, malformed-amount, or unconfirmed request.
 
 ---
 
@@ -443,32 +462,41 @@ flowchart TB
   - `apps/rise/app/ui/forms/issue-store-credit/config.json`
   - `apps/rise/app/ui/forms/issue-store-credit/form.gtpl`
   - `apps/rise/app/ui/forms/issue-store-credit/action_result.gtpl`
-  - `apps/rise/app/ui/forms/issue-store-credit/_test_/{success,missing_wallet}/`
+  - `apps/rise/app/ui/forms/issue-store-credit/_test_/{success,no_eligible,error}/`
 - **Approach:**
-  1. `form.gtpl` auto-selects `RiseWallet.id` as a hidden input bound to the wallet data pull —
-     the standard "form bound to a data pull, no customer context" idiom — closing the
-     card→action loop KTD1 names. It also carries a free-text amount field, a note field, and a
-     typed `approve` confirmation field, not Rise's own preset-amount buttons (KTD4's sibling
-     decision, `docs/rise/BUILD-SCOPE.md` C14). The `idempotencyKey` (KTD9) is generated once
-     when the form opens and persists across resubmission of the same form instance.
-  2. Form templates can't read `.integration.configuration`, so the cap value itself can't be
+  1. **Implementation-time correction:** there is no "hidden" input type — `appcfg`'s own
+     validator (checking form output against the real action-form schema) accepts only
+     `text`/`select`/`checkbox`. `walletId` is a single-option `select` bound to
+     `.data.wallet.id`/`.balance`, the closest equivalent to "auto-bound, not agent-typed"
+     available on this platform. The form also carries a free-text amount field (with a
+     placeholder/hint showing the expected format, closing the design-review gap on
+     format guidance), an optional note field, and a typed `approve` confirmation field, not
+     Rise's own preset-amount buttons (KTD4's sibling decision, `docs/rise/BUILD-SCOPE.md` C14).
+  2. **Implementation-time correction (KTD9):** no `idempotencyKey` field exists in this form at
+     all — it was dropped in favor of the action's own `.correlationId` (see U5). This form only
+     collects `walletId`, `amount`, `note`, `confirm`.
+  3. Form templates can't read `.integration.configuration`, so the cap value itself can't be
      shown in the form copy dynamically — the cap enforcement lives entirely in U5's action
      template, not here. Note this as a known UX limitation, not a bug to fix in this unit.
-  3. When the bound wallet pull returned nothing (no Rise.ai wallet for this customer, or the
-     pull failed per KTD6's accepted ambiguity), the form has no eligible wallet to select and
-     enters the platform's standard `no_eligible` state — the agent never reaches the
-     amount/approve fields against a missing target, rather than discovering the failure after
-     submitting (flow review; this is what closes the "no-wallet form state" gap).
-  4. `action_result.gtpl` renders the new balance and transaction id on the timeline. The
-     transaction ledger panel already rendered on the card (U4) does **not** auto-refresh after
-     a successful issuance — the timeline entry is the authoritative visible record of the
-     action; seeing the new entry in the ledger panel itself requires the agent to reload the
-     profile. Stated explicitly so it isn't mistaken for a bug (flow review).
-- **Patterns to follow:** `references/upgrading-and-forms.md` (form/action binding shape);
-  the `no_eligible` form-state convention in `references/testing-and-validation.md`.
+  4. When the bound wallet pull returned nothing (no Rise.ai wallet for this customer, or the
+     pull failed per KTD6's accepted ambiguity), the wallet `select` renders a single
+     non-actionable placeholder option (`value: ""`, since the schema requires at least one
+     option — an empty options array fails validation) rather than the platform's `no_eligible`
+     state, which this form-config schema doesn't appear to expose. U5's action has a matching
+     `walletId`-empty guard as defense in depth in case an agent submits anyway.
+  5. `action_result.gtpl` returns `{"message", "detail"}` on success (new balance + transaction
+     id) or `{"errors": [{"attr", "detail"}]}` on failure — `attr` turned out to be **required**
+     by `appcfg validate` (the public docs call it optional for 400-style errors), so failures
+     attach to the `confirm` field as the closest available anchor. The transaction ledger panel
+     already rendered on the card (U4) does **not** auto-refresh after a successful issuance —
+     the timeline entry is the authoritative visible record; seeing the new entry in the ledger
+     panel itself requires the agent to reload the profile (flow review).
+- **Patterns to follow:** `references/upgrading-and-forms.md` (form/action binding shape); the
+  Stay auto-selected-`select` idiom in `references/app-anatomy.md`.
 - **Test scenarios:**
-  - Success state renders the new balance and confirmation.
-  - `no_eligible` state when the bound wallet pull returned nothing.
+  - Success state renders the new balance and transaction id.
+  - Error state attaches the action's message to the form via `errors[0].detail`.
+  - No-wallet state renders the single non-actionable placeholder option instead of erroring.
 - **Verification:** `appcfg test ui-form` green.
 
 ---

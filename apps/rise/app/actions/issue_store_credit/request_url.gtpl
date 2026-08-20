@@ -1,3 +1,12 @@
+{{- /* GUARDED idiom (docs/rise/BUILD-SCOPE.md C8): typed confirmation + merchant cap, fail-closed. */ -}}
+{{- if not .inputs.walletId -}}
+  {{- stop "No Rise.ai wallet is available for this customer." -}}
+{{- end -}}
+{{- $confirm := "" -}}
+{{- if .inputs.confirm -}}{{- $confirm = .inputs.confirm | toString | trim -}}{{- end -}}
+{{- if ne $confirm "approve" -}}
+  {{- stop "Type approve to confirm this store credit issuance." -}}
+{{- end -}}
 {{- $amount := "" -}}
 {{- if .inputs.amount -}}{{- $amount = .inputs.amount | toString | trim -}}{{- end -}}
 {{- if not (regexMatch "^(0|[1-9][0-9]*)\\.[0-9]{2}$" $amount) -}}

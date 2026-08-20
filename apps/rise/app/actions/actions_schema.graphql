@@ -6,5 +6,5 @@ type IssueStoreCreditResult {
 }
 
 type Mutation {
-  issueStoreCredit(walletId: String!, amount: String!, note: String, idempotencyKey: String!): IssueStoreCreditResult @action(name: "issue_store_credit")
+  issueStoreCredit(walletId: String!, amount: String!, note: String, confirm: String!): IssueStoreCreditResult @action(name: "issue_store_credit")
 }
