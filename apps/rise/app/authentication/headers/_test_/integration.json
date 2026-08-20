@@ -1,0 +1,8 @@
+{
+  "configuration": {
+    "riseAccountId": "acct_12345"
+  },
+  "secrets": {
+    "apiKey": "test_key_abc123"
+  }
+}

@@ -1,0 +1,1 @@
+"API key is required. Enter a valid Rise.ai API key in the app configuration."
